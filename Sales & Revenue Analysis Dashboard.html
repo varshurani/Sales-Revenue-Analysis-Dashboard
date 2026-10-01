@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sales & Revenue Analysis Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--bg:#f5f7f6;--card:#fff;--ink:#14231f;--mute:#5d6f69;--line:#dbe3e0;--acc:#0f7b6c;--acc2:#e08a1e;--chip:#e6f1ee;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1715;--card:#17221f;--ink:#e8f0ed;--mute:#9bb0a9;--line:#2a3a36;--acc:#3fc2ac;--acc2:#f0a947;--chip:#1f302c}}
+:root[data-theme="dark"]{--bg:#0f1715;--card:#17221f;--ink:#e8f0ed;--mute:#9bb0a9;--line:#2a3a36;--acc:#3fc2ac;--acc2:#f0a947;--chip:#1f302c}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;line-height:1.45}
+.wrap{max-width:1100px;margin:0 auto;padding:18px 14px 40px}
+header{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;margin-bottom:14px}
+h1{font-size:1.4rem;margin:0}.sub{color:var(--mute);font-size:.9rem;margin:2px 0 0}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+button,.btn,select,input[type=month]{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:7px 12px;cursor:pointer}
+.primary{background:var(--acc);color:#fff;border-color:var(--acc)}
+:root[data-theme="dark"] .primary{color:#08201b}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .primary{color:#08201b}}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:14px}
+.filters label{font-size:.85rem;color:var(--mute);display:flex;gap:6px;align-items:center}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border-radius:999px;padding:4px 12px;font-size:.85rem;background:var(--chip)}
+.chip.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+:root[data-theme="dark"] .chip.on{color:#08201b}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .chip.on{color:#08201b}}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.kpi span{color:var(--mute);font-size:.82rem}.kpi b{display:block;font-size:1.45rem;margin-top:2px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.panel.wide{grid-column:1/-1}.panel h2{font-size:1rem;margin:0 0 10px}
+.ch{position:relative;height:260px}
+.tw{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:.9rem}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td.n,th.n{text-align:right}
+.note{color:var(--mute);font-size:.82rem;margin-top:10px}
+#msg{color:var(--acc2);font-size:.85rem;min-height:1.2em;margin:0 0 8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+ <div><h1>Sales & Revenue Dashboard</h1><p class="sub" id="src">Showing sample data</p></div>
+ <div class="btns">
+  <label class="btn primary" for="file">Import Excel / CSV</label>
+  <input id="file" type="file" accept=".csv,.xlsx,.xls" hidden>
+  <button id="sample">Use sample data</button>
+ </div>
+</header>
+<p id="msg"></p>
+<div class="filters">
+ <label>Region <select id="region"></select></label>
+ <label>From <input type="month" id="from"></label>
+ <label>To <input type="month" id="to"></label>
+ <div class="chips" id="chips" aria-label="Category slicer"></div>
+ <button id="reset">Clear filters</button>
+</div>
+<div class="kpis">
+ <div class="kpi"><span>Total revenue</span><b id="k1">-</b></div>
+ <div class="kpi"><span>Orders</span><b id="k2">-</b></div>
+ <div class="kpi"><span>Units sold</span><b id="k3">-</b></div>
+ <div class="kpi"><span>Avg. order value</span><b id="k4">-</b></div>
+</div>
+<div class="grid">
+ <div class="panel wide"><h2>Revenue trend by month</h2><div class="ch"><canvas id="c1"></canvas></div></div>
+ <div class="panel"><h2>Top 5 products by revenue</h2><div class="ch"><canvas id="c2"></canvas></div></div>
+ <div class="panel"><h2>Revenue by region</h2><div class="ch"><canvas id="c3"></canvas></div></div>
+ <div class="panel wide"><h2>Product performance</h2><div class="tw"><table><thead><tr><th>Product</th><th>Category</th><th class="n">Units</th><th class="n">Revenue</th><th class="n">Share</th></tr></thead><tbody id="tb"></tbody></table></div>
+ <p class="note">Import file columns: Date, Product, Category, Region, Units, Revenue (header names are matched ignoring case).</p></div>
+</div>
+</div>
+<script>
+const fmt=n=>"₹"+Math.round(n).toLocaleString("en-IN"),num=n=>Math.round(n).toLocaleString("en-IN");
+let ALL=[],cat=new Set(),charts={};
+function sample(){
+ const P=[["Laptop","Electronics",52000],["Smartphone","Electronics",18000],["Headphones","Accessories",2500],["Office Chair","Furniture",7500],["Standing Desk","Furniture",14000],["Backpack","Accessories",1800],["Monitor","Electronics",12000],["Notebook Pack","Stationery",350]];
+ const R=["North","South","East","West"];let s=7;const rnd=()=>(s=(s*9301+49297)%233280)/233280;const out=[];
+ for(let m=0;m<12;m++)for(let i=0;i<45;i++){const p=P[Math.floor(rnd()*P.length)],u=1+Math.floor(rnd()*5);
+  const d=new Date(2025,10+m,1+Math.floor(rnd()*27));
+  out.push({date:d,product:p[0],category:p[1],region:R[Math.floor(rnd()*4)],units:u,revenue:u*p[2]*(0.9+rnd()*0.2)*(1+m*0.02)})}
+ return out}
+function load(rows,label){ALL=rows;document.getElementById("src").textContent=label;cat=new Set();
+ const regs=[...new Set(ALL.map(r=>r.region))].sort();
+ document.getElementById("region").innerHTML='<option value="">All regions</option>'+regs.map(r=>`<option>${r}</option>`).join("");
+ const ms=ALL.map(r=>mk(r.date)).sort();from.value=ms[0];to.value=ms[ms.length-1];
+ const cats=[...new Set(ALL.map(r=>r.category))].sort();
+ chips.innerHTML=cats.map(c=>`<button class="chip" data-c="${c}">${c}</button>`).join("");
+ chips.querySelectorAll(".chip").forEach(b=>b.onclick=()=>{cat.has(b.dataset.c)?cat.delete(b.dataset.c):cat.add(b.dataset.c);b.classList.toggle("on");render()});
+ render()}
+const mk=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
+function filtered(){const rg=region.value,f=from.value,t=to.value;
+ return ALL.filter(r=>(!rg||r.region===rg)&&(!cat.size||cat.has(r.category))&&(!f||mk(r.date)>=f)&&(!t||mk(r.date)<=t))}
+function group(rows,key){const m={};rows.forEach(r=>{const k=key(r);(m[k]=m[k]||{rev:0,u:0,cat:r.category}).rev+=r.revenue;m[k].u+=r.units});return m}
+function draw(id,cfg){charts[id]&&charts[id].destroy();charts[id]=new Chart(document.getElementById(id),cfg)}
+function render(){const rows=filtered(),tot=rows.reduce((a,r)=>a+r.revenue,0),un=rows.reduce((a,r)=>a+r.units,0);
+ k1.textContent=fmt(tot);k2.textContent=num(rows.length);k3.textContent=num(un);k4.textContent=rows.length?fmt(tot/rows.length):"-";
+ const css=getComputedStyle(document.documentElement),acc=css.getPropertyValue("--acc").trim(),acc2=css.getPropertyValue("--acc2").trim(),mute=css.getPropertyValue("--mute").trim(),line=css.getPropertyValue("--line").trim();
+ Chart.defaults.color=mute;Chart.defaults.borderColor=line;
+ const mo=group(rows,r=>mk(r.date)),mKeys=Object.keys(mo).sort();
+ draw("c1",{type:"line",data:{labels:mKeys,datasets:[{label:"Revenue",data:mKeys.map(k=>mo[k].rev),borderColor:acc,backgroundColor:acc+"33",fill:true,tension:.3}]},options:{maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>"₹"+(v/1000)+"k"}}}}});
+ const pr=group(rows,r=>r.product),pk=Object.keys(pr).sort((a,b)=>pr[b].rev-pr[a].rev);
+ draw("c2",{type:"bar",data:{labels:pk.slice(0,5),datasets:[{data:pk.slice(0,5).map(k=>pr[k].rev),backgroundColor:acc}]},options:{indexAxis:"y",maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{callback:v=>"₹"+(v/1000)+"k"}}}}});
+ const rg=group(rows,r=>r.region),rk=Object.keys(rg);const pal=[acc,acc2,"#6c8ebf","#b5657b","#8a9a5b"];
+ draw("c3",{type:"doughnut",data:{labels:rk,datasets:[{data:rk.map(k=>rg[k].rev),backgroundColor:pal,borderWidth:0}]},options:{maintainAspectRatio:false,plugins:{legend:{position:"bottom"}}}});
+ tb.innerHTML=pk.map(k=>`<tr><td>${k}</td><td>${pr[k].cat}</td><td class="n">${num(pr[k].u)}</td><td class="n">${fmt(pr[k].rev)}</td><td class="n">${tot?(pr[k].rev/tot*100).toFixed(1):0}%</td></tr>`).join("")||'<tr><td colspan="5">No data for these filters. Clear filters to see all rows.</td></tr>'}
+function parseDate(v){if(v instanceof Date)return v;if(typeof v==="number"){return new Date(Math.round((v-25569)*864e5))}
+ const d=new Date(v);return isNaN(d)?null:d}
+function fromObjects(objs){const rows=[];objs.forEach(o=>{const g={};Object.keys(o).forEach(k=>g[k.trim().toLowerCase()]=o[k]);
+ const d=parseDate(g.date),rev=parseFloat(g.revenue),u=parseFloat(g.units);
+ if(d&&!isNaN(rev))rows.push({date:d,product:String(g.product||"Unknown"),category:String(g.category||"Other"),region:String(g.region||"Unknown"),units:isNaN(u)?1:u,revenue:rev})});return rows}
+file.onchange=async e=>{const f=e.target.files[0];if(!f)return;msg.textContent="";
+ try{const wb=XLSX.read(await f.arrayBuffer(),{type:"array",cellDates:true});
+  const rows=fromObjects(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]));
+  if(!rows.length)throw 0;load(rows,"Showing "+f.name+" ("+rows.length+" rows)")}
+ catch(err){msg.textContent="Could not read this file. Use columns: Date, Product, Category, Region, Units, Revenue."}
+ file.value=""};
+document.getElementById("sample").onclick=()=>load(sample(),"Showing sample data");
+document.getElementById("reset").onclick=()=>{cat=new Set();region.value="";load(ALL,document.getElementById("src").textContent)};
+[region,from,to].forEach(el=>el.onchange=render);
+matchMedia("(prefers-color-scheme:dark)").onchange=render;
+load(sample(),"Showing sample data");
+</script>
+</body>
+</html>
